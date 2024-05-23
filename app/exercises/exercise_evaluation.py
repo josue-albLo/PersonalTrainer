@@ -1,5 +1,3 @@
-# exercise_evaluation.py
-
 import numpy as np
 import mediapipe as mp
 
@@ -28,9 +26,18 @@ def evaluate_squat(landmarks):
     ankle = landmarks.landmark[mp_pose.PoseLandmark.LEFT_ANKLE]
 
     angle = calculate_angle(hip, knee, ankle)
-    ideal_angle = 90
-    angle_diff = abs(angle - ideal_angle)
-    precision = max(0, 100 - angle_diff)
+    precision = 0
+
+    if angle > 160:  # Starting position, standing up
+        precision = 0
+    elif 70 <= angle <= 160:  # Mid-squat position
+        ideal_angle_mid = 90  # Ideal angle for midpoint of squat
+        angle_diff = abs(angle - ideal_angle_mid)
+        precision = max(0, 100 - angle_diff)
+    elif angle < 70:  # Squat position, knees fully bent
+        ideal_angle_end = 60  # Ideal angle for bottom of squat
+        angle_diff = abs(angle - ideal_angle_end)
+        precision = max(0, 100 - angle_diff)
 
     return precision
 
@@ -49,8 +56,6 @@ def evaluate_bicep_curl(landmarks):
 
 
 def evaluate_jump(landmarks):
-    # Define your criteria for a jump here
-    # This example uses a simple height check
     hip = landmarks.landmark[mp_pose.PoseLandmark.LEFT_HIP]
     base_height = 0.5  # This should be dynamically set based on initial standing height
 
@@ -73,11 +78,11 @@ def detect_exercise(landmarks):
     bicep_curl_angle = calculate_angle(left_shoulder, left_elbow, left_wrist)
 
     # Determine if the exercise is a squat
-    if squat_angle < 90:
+    if squat_angle < 160:
         return "squat"
 
     # Determine if the exercise is a bicep curl
-    if bicep_curl_angle < 45:
+    if bicep_curl_angle < 160:  # Adjust threshold for initial detection of a curl
         return "bicep_curl"
 
     # Determine if the exercise is a jump (example logic)

@@ -16,6 +16,8 @@ from exercises.exercise_evaluation import (
     evaluate_jump,
     detect_exercise,
 )
+from pose_kalman_filter.PoseKalmanFilter import PoseKalmanFilter
+
 
 class MainApp(App):
     def build(self):
@@ -37,13 +39,26 @@ class MainApp(App):
             size_hint=(1, 0.2), orientation="horizontal", spacing=10, padding=[20, 10]
         )
         self.exercise_label = Label(
-            text="Ejercicio: unknown", size_hint=(0.5, 1), color=(1, 1, 1, 1), font_size='20sp'
+            text="Ejercicio: unknown",
+            size_hint=(0.33, 1),
+            color=(1, 1, 1, 1),
+            font_size="20sp",
         )
         self.label = Label(
-            text="Precision: 0.00%", size_hint=(0.5, 1), color=(1, 1, 1, 1), font_size='20sp'
+            text="Precisión: 0.00%",
+            size_hint=(0.33, 1),
+            color=(1, 1, 1, 1),
+            font_size="20sp",
+        )
+        self.rep_counter_label = Label(
+            text="Repeticiones: 0",
+            size_hint=(0.33, 1),
+            color=(1, 1, 1, 1),
+            font_size="20sp",
         )
         info_layout.add_widget(self.exercise_label)
         info_layout.add_widget(self.label)
+        info_layout.add_widget(self.rep_counter_label)
 
         main_layout.add_widget(anchor_layout)
         main_layout.add_widget(info_layout)
@@ -62,6 +77,11 @@ class MainApp(App):
         )
         self.mp_drawing = mp.solutions.drawing_utils
         self.mp_drawing_styles = mp.solutions.drawing_styles
+        self.kalman_filter = PoseKalmanFilter(n_landmarks=33)
+
+        self.current_exercise = "unknown"
+        self.reps = 0
+        self.in_position = False
 
         Clock.schedule_interval(self.update, 1.0 / 30.0)
         return root
@@ -77,9 +97,10 @@ class MainApp(App):
 
         frame, precision, exercise = self.process_frame(frame)
 
-        # Update labels with precision and exercise
-        self.label.text = f"Precision: {precision:.2f}%"
+        # Update labels with precision, exercise, and reps
+        self.label.text = f"Precisión: {precision:.2f}%"
         self.exercise_label.text = f"Ejercicio: {exercise}"
+        self.rep_counter_label.text = f"Repeticiones: {self.reps}"
 
         buf1 = cv2.flip(frame, 0)
         buf = buf1.tostring()
@@ -105,12 +126,30 @@ class MainApp(App):
             exercise = detect_exercise(results.pose_landmarks)
             if exercise == "squat":
                 precision = evaluate_squat(results.pose_landmarks)
+                self.update_reps(precision, exercise)
             elif exercise == "bicep_curl":
                 precision = evaluate_bicep_curl(results.pose_landmarks)
+                self.update_reps(precision, exercise)
             elif exercise == "jump":
                 precision = evaluate_jump(results.pose_landmarks)
+                self.update_reps(precision, exercise)
 
         return frame, precision, exercise
+
+    def update_reps(self, precision, exercise):
+        if self.current_exercise != exercise:
+            self.current_exercise = exercise
+            self.reps = 0
+            self.in_position = False
+
+        if exercise in ["squat", "bicep_curl", "jump"]:
+            if precision > 70 and not self.in_position:
+                print("In position!")
+                self.in_position = True
+            elif precision < 40 and self.in_position:
+                print("Count repetition!")
+                self.reps += 1
+                self.in_position = False
 
     def on_stop(self):
         self.cap.release()
